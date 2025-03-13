@@ -1,5 +1,5 @@
 import express from 'express';
-import puppeteer from 'puppeteer';
+import { chromium } from 'playwright';
 import cors from 'cors';
 import dotenv from 'dotenv';
 
@@ -27,35 +27,23 @@ function updateSerialNumbers(data) {
 app.post('/scrape-attendance', async (req, res) => {
   let { username, password } = req.body;
 
-  // Use .env variables if not provided in the request
-  username = username;
-  password = password;
-
   let browser;
   try {
-    browser = await puppeteer.launch({
-      headless: 'new', // Necessary for Render & cloud environments
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-// Use system-installed Chromium if available
-    });
-
-    const page = await browser.newPage();
-    await page.setViewport({ width: 1920, height: 1080 });
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext();
+    const page = await context.newPage();
 
     await page.goto('https://online.nitjsr.ac.in/endsem/Login.aspx', { waitUntil: 'domcontentloaded', timeout: 10000 });
-
-    await page.waitForSelector('#txtuser_id');
-    await page.type('#txtuser_id', username);
-    await page.type('#txtpassword', password);
-
+    
+    await page.fill('#txtuser_id', username);
+    await page.fill('#txtpassword', password);
+    
     await Promise.all([
       page.click('#btnsubmit'),
-      page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 10000 }),
+      page.waitForNavigation({ waitUntil: 'networkidle', timeout: 10000 }),
     ]);
 
-    await page.goto('https://online.nitjsr.ac.in/endsem/StudentAttendance/ClassAttendance.aspx', { waitUntil: 'networkidle2', timeout: 10000 });
-
+    await page.goto('https://online.nitjsr.ac.in/endsem/StudentAttendance/ClassAttendance.aspx', { waitUntil: 'networkidle', timeout: 10000 });
     await page.waitForSelector('table.table');
 
     const attendanceData = await page.evaluate(() => {
@@ -83,7 +71,6 @@ app.post('/scrape-attendance', async (req, res) => {
 
     await browser.close();
     res.json(finalData);
-
   } catch (error) {
     if (browser) await browser.close();
     res.status(500).json({ error: 'Scraping failed', details: error.message });

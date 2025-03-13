@@ -23,7 +23,7 @@ export default function Home() {
     setError("");
 
     try {
-      const response = await fetch("http://localhost:5000/scrape-attendance", {
+      const response = await fetch("https://shadowmev2.onrender.com/scrape-attendance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
