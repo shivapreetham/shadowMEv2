@@ -1,6 +1,9 @@
 import express from 'express';
 import puppeteer from 'puppeteer';
 import cors from 'cors';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -23,27 +26,25 @@ function updateSerialNumbers(data) {
 
 app.post('/scrape-attendance', async (req, res) => {
   let { username, password } = req.body;
-  
-  if (!username || !password) {
-    username = "2023UGCS120";
-    password = "9845920244";
-  }
 
-  const browser = await puppeteer.launch({ 
-    headless: false,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
-  });
+  // Use .env variables if not provided in the request
+  username = username;
+  password = password;
 
-  const page = await browser.newPage();
-
+  let browser;
   try {
+    browser = await puppeteer.launch({
+      headless: 'new', // Necessary for Render & cloud environments
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      executablePath: "/usr/bin/chromium-browser"
+// Use system-installed Chromium if available
+    });
+
+    const page = await browser.newPage();
     await page.setViewport({ width: 1920, height: 1080 });
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
 
-    await page.goto('https://online.nitjsr.ac.in/endsem/Login.aspx', { 
-      waitUntil: 'domcontentloaded', 
-      timeout: 5000 
-    });
+    await page.goto('https://online.nitjsr.ac.in/endsem/Login.aspx', { waitUntil: 'domcontentloaded', timeout: 10000 });
 
     await page.waitForSelector('#txtuser_id');
     await page.type('#txtuser_id', username);
@@ -51,13 +52,10 @@ app.post('/scrape-attendance', async (req, res) => {
 
     await Promise.all([
       page.click('#btnsubmit'),
-      page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 5000 })
+      page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 10000 }),
     ]);
 
-    await page.goto('https://online.nitjsr.ac.in/endsem/StudentAttendance/ClassAttendance.aspx', { 
-      waitUntil: 'networkidle2', 
-      timeout: 5000 
-    });
+    await page.goto('https://online.nitjsr.ac.in/endsem/StudentAttendance/ClassAttendance.aspx', { waitUntil: 'networkidle2', timeout: 10000 });
 
     await page.waitForSelector('table.table');
 
@@ -81,16 +79,14 @@ app.post('/scrape-attendance', async (req, res) => {
       }).filter(Boolean);
     });
 
-    // First, filter out rows where subjectName is purely numeric.
     const cleanedData = cleanAttendanceData(attendanceData);
-    // Now, update the serial numbers sequentially.
     const finalData = updateSerialNumbers(cleanedData);
 
     await browser.close();
     res.json(finalData);
 
   } catch (error) {
-    await browser.close();
+    if (browser) await browser.close();
     res.status(500).json({ error: 'Scraping failed', details: error.message });
   }
 });
