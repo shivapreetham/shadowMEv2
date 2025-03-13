@@ -36,7 +36,6 @@ app.post('/scrape-attendance', async (req, res) => {
     browser = await puppeteer.launch({
       headless: 'new', // Necessary for Render & cloud environments
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
-      executablePath: "/usr/bin/chromium-browser"
 // Use system-installed Chromium if available
     });
 
